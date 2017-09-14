@@ -1,0 +1,111 @@
+package chat1;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.*;
+import java.net.*;
+import java.util.ArrayList;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+
+public class Server extends JFrame implements ActionListener, Runnable{
+	ArrayList<ChatThread> users = new ArrayList<ChatThread>();
+	String userList = "";
+	private Socket s=null;
+	private ServerSocket ss=null;
+	private JTextArea taMsg =new JTextArea("客户端聊天记录\n" );
+	private JTextField tfMsg=new JTextField();
+	private JComboBox<Object> jcb = new JComboBox<Object>();
+	private JButton jbt = new JButton("强制下线");
+	public Server() throws Exception{
+		this.setTitle("服务器");
+		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		this.add(taMsg,BorderLayout.CENTER);
+    	tfMsg.setBackground(Color.white);
+        this.add(tfMsg,BorderLayout.SOUTH);
+        tfMsg.addActionListener(this);
+        jbt.addActionListener(this);
+		this.add(jcb,BorderLayout.NORTH);
+		this.add(jbt,BorderLayout.WEST);
+		this.setBackground(Color.blue);
+        this.setSize(500, 600);	
+        this.setVisible(true);
+        new Thread(this).start();	//接受客户端的死循环开始运行
+	}
+	public void run(){
+		try{
+			ServerSocket ss = new ServerSocket(9999);
+			while(true){
+				s=ss.accept();     //得到客户端Socket对象
+				ChatThread ct=new ChatThread(s);
+				users.add(ct);
+				ct.start();}
+		   }catch(Exception ex){}
+		}
+    class ChatThread extends Thread{
+		private Socket s;
+		BufferedReader br;
+	    PrintStream ps ;
+		public ChatThread(Socket s)throws Exception{
+		this.s=s;
+		br=new BufferedReader(new InputStreamReader(s.getInputStream()));
+		ps=new PrintStream(s.getOutputStream());
+		}
+		public void run(){ 
+			while(true){
+				try{
+					InputStream is=s.getInputStream();
+					BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream()));
+					String msg = br.readLine();
+					//判断信息是登陆的还是聊天的？
+					if(msg.startsWith("LOGIN#")){
+						String[] strs = msg.split("#");
+						
+						for(int i=1;i<strs.length;i++){
+							jcb.addItem(strs[i]);
+						}
+						userList = userList + strs[1] + "#";
+						for(int i=0;i<users.size();i++){
+							ChatThread ct = (ChatThread)users.get(i);
+							ct.ps.println("LOGIN#"+userList);
+						}					
+					}else{
+						//将msg发给所有在线的客户端,遍历数组
+						for(int i=0;i<users.size();i++){
+							ChatThread ct = (ChatThread)users.get(i);
+							ct.ps.println(msg);
+						}
+						taMsg.append(msg+ "\n");
+					
+					}
+					
+					
+				}catch(Exception ex){}
+			}
+		}
+	}	
+	
+	public void actionPerformed(ActionEvent e){
+		if(e.getSource().equals(tfMsg)){
+		try{ 	
+			for(int i=0;i<users.size();i++){
+				ChatThread ct = (ChatThread)users.get(i);
+				ct.ps.println("系统:"+tfMsg.getText());
+		}
+		taMsg.append("已群发系统消息："+tfMsg.getText()+"\n");
+		tfMsg.setText("");
+    	}catch (Exception ex){}
+		}
+if (e.getSource().equals(jbt)){
+			
+			try{
+			  System.exit(0);}catch(Exception ex){}
+		}
+	}
+	public static void main(String[] args) throws Exception {
+		Server server=new Server();
+	}
+}
